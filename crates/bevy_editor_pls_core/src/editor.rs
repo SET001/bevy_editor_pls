@@ -1,6 +1,7 @@
 use std::any::{Any, TypeId};
 
 use bevy::ecs::event::Events;
+use bevy::utils::HashSet;
 use bevy::window::{WindowId, WindowMode};
 use bevy::{prelude::*, utils::HashMap};
 use bevy_inspector_egui::bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings, EguiSystem};
@@ -91,6 +92,7 @@ impl Default for EditorState {
 pub struct Editor {
     windows: IndexMap<TypeId, EditorWindowData>,
     window_states: HashMap<TypeId, EditorWindowState>,
+    opened_windows: HashSet<TypeId>
 }
 
 pub(crate) type UiFn =
@@ -203,6 +205,12 @@ fn viewport_toolbar_ui_fn<W: EditorWindow>(
 }
 
 impl Editor {
+
+    pub fn open_window<W: EditorWindow>(&mut self){
+        let type_id = std::any::TypeId::of::<W>();
+        self.opened_windows.insert(type_id);
+    }
+
     pub fn add_window<W: EditorWindow>(&mut self) {
         let type_id = std::any::TypeId::of::<W>();
         let ui_fn = Box::new(ui_fn::<W>);
@@ -294,6 +302,19 @@ impl Editor {
         internal_state: &mut EditorInternalState,
         editor_events: &mut Events<EditorEvent>,
     ) {
+        for window_id in self.opened_windows.iter(){
+            let floating_window_id = internal_state.next_floating_window_id();
+            internal_state
+            .floating_windows
+            .push(crate::editor::FloatingWindow {
+                window: *window_id,
+                id: floating_window_id,
+                original_panel: None,
+                initial_position: None,
+            });
+        }
+        self.opened_windows.clear();
+
         self.editor_menu_bar(world, ctx, editor_state, internal_state, editor_events);
 
         if !editor_state.active {
